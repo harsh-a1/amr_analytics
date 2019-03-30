@@ -1,0 +1,76 @@
+﻿
+select coc.name,coc.uid,cc.name,deco.name
+from categorycombos_optioncombos cc_coc
+inner join categorycombo cc on cc.categorycomboid = cc_coc.categorycomboid
+inner join categoryoptioncombo coc on coc.categoryoptioncomboid = cc_coc.categoryoptioncomboid
+inner join categoryoptioncombos_categoryoptions coc_co on coc_co.categoryoptioncomboid = cc_coc.categoryoptioncomboid
+inner join dataelementcategoryoption deco on deco.categoryoptionid = coc_co.categoryoptionid
+where cc_coc.categorycomboid = 102161
+
+
+select so,count(psi),period,sourceid
+from
+(
+	select programstageinstanceid as psi,period,concat(string_agg(organism,''),':',string_agg(sample,'')) as so,sourceid
+	from
+	(
+		select psi.programstageinstanceid,
+		to_char(executiondate,'yyyymm') as period,
+		psi.organisationunitid as sourceid,
+		de.dataelementid as deid,
+		case when de.code = 'organism' then tedv.value end as organism,
+		case when de.uid = 'mp5MeJ2dFQz' then tedv.value end as sample
+		from programstageinstance psi
+		inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
+		inner join dataelement de on tedv.dataelementid = de.dataelementid
+		where de.code = 'organism' or de.uid ='mp5MeJ2dFQz' and tedv.value != ''
+		group by psi.programstageinstanceid,de.uid,de.code,psi.organisationunitid,tedv.value
+		order by psi.programstageinstanceid
+	)pso
+	group by programstageinstanceid,period,sourceid
+	order by programstageinstanceid
+)pso2
+group by period,sourceid,so
+order by so
+
+
+select psi.programstageinstanceid,to_char(executiondate,'yyyymm') as period,psi.organisationunitid as sourceid
+from programstageinstance psi
+inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
+inner join dataelement de on tedv.dataelementid = de.dataelementid
+inner join dataelement deorg on tedv.value = deorg.code
+where de.code = 'organism' and tedv.value != ''
+group by psi.programstageinstanceid,de.uid,de.code,psi.organisationunitid,tedv.value
+
+select psi.programstageinstanceid,to_char(executiondate,'yyyymm') as period,psi.organisationunitid as sourceid
+from programstageinstance psi
+inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
+inner join dataelement de on tedv.dataelementid = de.dataelementid
+inner join dataelement deorg on tedv.value = deorg.code
+where  de.uid ='mp5MeJ2dFQz' and tedv.value != ''
+group by psi.programstageinstanceid,de.uid,de.code,psi.organisationunitid,tedv.value
+
+
+select * from dataelement
+select * from dataelementcategoryoption
+select * from categorycombo where uid = 'vgZPpD2yUly'
+select * from categorycombos_categories
+select * from categories_categoryoptions
+select * from categorycombos_optioncombos
+select * from categoryoptioncombos_categoryoptions
+
+select coc.name,coc.uid,deco.uid,deco.name,cc.name
+from categoryoptioncombos_categoryoptions coc_co
+inner join categoryoptioncombo coc on coc.categoryoptioncomboid = coc_co.categoryoptioncomboid
+inner join categorycombos_optioncombos cc_coc on coc.categoryoptioncomboid = coc_co.categoryoptioncomboid
+inner join dataelementcategoryoption deco on deco.categoryoptionid = coc_co.categoryoptionid
+inner join categorycombo cc on cc.categorycomboid = cc_coc.categorycomboid
+where coc_co.categoryoptionid=101676 and cc_coc.categorycomboid = 102161
+
+
+
+
+
+
+
+
