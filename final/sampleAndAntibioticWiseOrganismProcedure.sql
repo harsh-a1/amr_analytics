@@ -1,5 +1,6 @@
 ﻿create or replace function sampleAndAntibioticWiseOrganism() returns setof record as '
 
+
 select de_aggid as deid,
 	organism.sourceid,
 	organism.startdate,
@@ -30,7 +31,9 @@ from
 inner join
 (
 	select sample.programstageinstanceid,		
-		array[sample_coid,antibiotics_coid] as sample_antibiotic_coids
+		array[sample_coid,antibiotics_coid] as sample_antibiotic_coids,
+		sample_coid,
+		antibiotics_coid
 	from
 	(
 	select psi.programstageinstanceid,
@@ -83,7 +86,7 @@ inner join categorycombo cc on cc.categorycomboid = cc_coc.categorycomboid
 where cc_coc.categorycomboid != 102161
 group by coc_co.categoryoptioncomboid,cc.categorycomboid
 )cocs
-on antibiotic_sample.sample_antibiotic_coids = cocs.cocelems and organism.de_aggccid = cocs.categorycomboid
+on antibiotic_sample.antibiotics_coid = any(cocs.cocelems) and antibiotic_sample.sample_coid = any (cocs.cocelems) and organism.de_aggccid = cocs.categorycomboid
 left join period p on p.startdate = organism.startdate and p.enddate = organism.enddate
 group by de_aggid,organism.sourceid,organism.startdate,organism.enddate,categoryoptioncomboid,p.periodid
 
