@@ -7,7 +7,7 @@ select de_aggid as deid,
 	p.periodid,
 	categoryoptioncomboid,
 	count(organism.value) as value
-from (
+	from (
 	select psi.programstageinstanceid,
 		to_char(executiondate, $$yyyy-mm-01$$)::date as startdate,
 		(date_trunc($$month$$,executiondate)+interval $$1 month$$ - interval $$1 day$$)::date as enddate,
@@ -15,6 +15,7 @@ from (
 		de.dataelementid as de_organismid,
 		tedv.value,
 		deAgg.dataelementid as de_aggid,
+		deAgg.categorycomboid as de_aggccid,
 		max(deAgg.name) as de_aggname
 	from programstageinstance psi
 	inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
@@ -28,30 +29,60 @@ from (
 )organism
 inner join
 (
+	select sample.programstageinstanceid,		
+	array[sample_coid,loc_coid] as sample_location_coids,
+	sample_coid,
+	loc_coid
+	from
+	(
 	select psi.programstageinstanceid,
 		psi.organisationunitid as sourceid,
 		de.dataelementid as de_sampleid,
-		tedv.value,
-		deco.categoryoptionid as decoid,
-		deco.uid as decouid,
-		max(deco.name) as deconame,
-		coc.categoryoptioncomboid
-	from programstageinstance psi
+		tedv.value as samplevalue,
+		deco.categoryoptionid as sample_coid,
+		deco.uid as sample_couid,
+		max(deco.name) as sample_coname
+		from programstageinstance psi
 	inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
 	inner join dataelement de on tedv.dataelementid = de.dataelementid
 	inner join dataelementcategoryoption deco on deco.code = tedv.value
-	inner join categoryoptioncombos_categoryoptions coc_co on coc_co.categoryoptionid = deco.categoryoptionid
-	inner join categorycombos_optioncombos cc_coc on cc_coc.categoryoptioncomboid = coc_co.categoryoptioncomboid
-	inner join categoryoptioncombo coc on coc.categoryoptioncomboid = cc_coc.categoryoptioncomboid
-	where de.uid = $$mp5MeJ2dFQz$$ and tedv.value != $$$$ and cc_coc.categorycomboid = 102161
-	group by psi.programstageinstanceid,de.dataelementid,de.code,
-		psi.organisationunitid,tedv.value,deco.categoryoptionid,
-		coc.categoryoptioncomboid,coc.uid,deco.uid
-)sample
-on organism.programstageinstanceid = sample.programstageinstanceid
+	where de.uid = $$mp5MeJ2dFQz$$ and tedv.value != $$$$
+	group by psi.programstageinstanceid,de.dataelementid,de.code,psi.organisationunitid,tedv.value,deco.categoryoptionid
+	)sample
+	inner join
+	(
+	select psi.programstageinstanceid,
+		psi.organisationunitid as sourceid,
+		de.dataelementid as de_locid,
+		tedv.value as locvalue,
+		deco.categoryoptionid as loc_coid,
+		deco.uid as loc_couid,
+		max(deco.name) as sample_coname
+		from programstageinstance psi
+	inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
+	inner join dataelement de on tedv.dataelementid = de.dataelementid
+	inner join dataelementcategoryoption deco on deco.code = tedv.value
+	where de.code = $$WARD_TYPE$$ and tedv.value != $$$$
+	group by psi.programstageinstanceid,de.dataelementid,de.code,psi.organisationunitid,tedv.value,deco.categoryoptionid
+	)loc
+	on loc.programstageinstanceid = sample.programstageinstanceid
+)sample_location
+on organism.programstageinstanceid = sample_location.programstageinstanceid
+inner join
+(
+select coc_co.categoryoptioncomboid,array_agg(coc_co.categoryoptionid) as cocelems,cc.categorycomboid,max(cc.name) as ccname
+from categoryoptioncombos_categoryoptions coc_co
+inner join categorycombos_optioncombos cc_coc on cc_coc.categoryoptioncomboid = coc_co.categoryoptioncomboid
+inner join categorycombo cc on cc.categorycomboid = cc_coc.categorycomboid
+group by coc_co.categoryoptioncomboid,cc.categorycomboid
+)cocs
+on 	sample_location.sample_coid = any (cocs.cocelems) and 
+	sample_location.loc_coid = any (cocs.cocelems) and 
+	organism.de_aggccid = cocs.categorycomboid
 left join period p on p.startdate = organism.startdate and p.enddate = organism.enddate
 group by de_aggid,organism.sourceid,organism.startdate,organism.enddate,categoryoptioncomboid,p.periodid
 order by deid
+
 
 ' Language sql;
 CREATE or replace FUNCTION cs() RETURNS void AS $$

@@ -1,6 +1,5 @@
 ﻿create or replace function sampleAndAntibioticWiseOrganism() returns setof record as '
 
-
 select de_aggid as deid,
 	organism.sourceid,
 	organism.startdate,
@@ -31,9 +30,10 @@ from
 inner join
 (
 	select sample.programstageinstanceid,		
-		array[sample_coid,antibiotics_coid] as sample_antibiotic_coids,
+		array[sample_coid,antibiotics_coid,loc_coid] as sample_antibiotic_coids,
 		sample_coid,
-		antibiotics_coid
+		antibiotics_coid,
+		loc_coid
 	from
 	(
 	select psi.programstageinstanceid,
@@ -52,31 +52,47 @@ inner join
 	)sample
 	inner join
 	(
-		select psi.programstageinstanceid,
-			psi.organisationunitid as sourceid,
-			de.dataelementid as de_antibioticsid,
-			deco.categoryoptionid antibiotics_coid,
-			max(deco.name),
-			max(de.name) as antibioticsname,
-			tedv.value ris_code
-		from programstageinstance psi
-		inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
-		inner join dataelement de on tedv.dataelementid = de.dataelementid
-		inner join dataelementgroupmembers degm on degm.dataelementid = de.dataelementid 
-		inner join dataelementgroup deg on degm.dataelementgroupid = deg.dataelementgroupid
-		inner join attributevalue av_antibiotic on av_antibiotic.value = de.code
-		inner join attribute attr_antibiotic on attr_antibiotic.attributeid = av_antibiotic.attributeid
-		inner join dataelementcategoryoptionattributevalues decoav_antibiotic on decoav_antibiotic.attributevalueid = av_antibiotic.attributevalueid
-		inner join dataelementcategoryoption deco on deco.categoryoptionid = decoav_antibiotic.categoryoptionid
-		inner join dataelementcategoryoptionattributevalues decoav_ris on decoav_ris.categoryoptionid = deco.categoryoptionid
-		inner join attributevalue av_ris on av_ris.value = tedv.value and av_ris.attributevalueid = decoav_ris.attributevalueid
-		where deg.uid = $$UqaPXt3CGcz$$ and tedv.value != $$$$ 
-		group by psi.programstageinstanceid,de.dataelementid,de.code,psi.organisationunitid,tedv.value,deco.categoryoptionid
-	)antibiotic
+	select psi.programstageinstanceid,
+		psi.organisationunitid as sourceid,
+		de.dataelementid as de_antibioticsid,
+		deco.categoryoptionid antibiotics_coid,
+		max(deco.name),
+		max(de.name) as antibioticsname,
+		tedv.value ris_code
+	from programstageinstance psi
+	inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
+	inner join dataelement de on tedv.dataelementid = de.dataelementid
+	inner join dataelementgroupmembers degm on degm.dataelementid = de.dataelementid 
+	inner join dataelementgroup deg on degm.dataelementgroupid = deg.dataelementgroupid
+	inner join attributevalue av_antibiotic on av_antibiotic.value = de.code
+	inner join attribute attr_antibiotic on attr_antibiotic.attributeid = av_antibiotic.attributeid
+	inner join dataelementcategoryoptionattributevalues decoav_antibiotic on decoav_antibiotic.attributevalueid = av_antibiotic.attributevalueid
+	inner join dataelementcategoryoption deco on deco.categoryoptionid = decoav_antibiotic.categoryoptionid
+	inner join dataelementcategoryoptionattributevalues decoav_ris on decoav_ris.categoryoptionid = deco.categoryoptionid
+	inner join attributevalue av_ris on av_ris.value = tedv.value and av_ris.attributevalueid = decoav_ris.attributevalueid
+	where deg.uid = $$UqaPXt3CGcz$$ and tedv.value != $$$$ 
+	group by psi.programstageinstanceid,de.dataelementid,de.code,psi.organisationunitid,tedv.value,deco.categoryoptionid
+	)antibiotic	
 	on sample.programstageinstanceid = antibiotic.programstageinstanceid
-
-)antibiotic_sample
-on organism.programstageinstanceid = antibiotic_sample.programstageinstanceid
+	inner join 
+	(
+	select psi.programstageinstanceid,
+		psi.organisationunitid as sourceid,
+		de.dataelementid as de_locid,
+		tedv.value as locvalue,
+		deco.categoryoptionid as loc_coid,
+		deco.uid as loc_couid,
+		max(deco.name) as sample_coname
+		from programstageinstance psi
+	inner join trackedentitydatavalue tedv on tedv.programstageinstanceid = psi.programstageinstanceid
+	inner join dataelement de on tedv.dataelementid = de.dataelementid
+	inner join dataelementcategoryoption deco on deco.code = tedv.value
+	where de.code = $$WARD_TYPE$$ and tedv.value != $$$$
+	group by psi.programstageinstanceid,de.dataelementid,de.code,psi.organisationunitid,tedv.value,deco.categoryoptionid
+	)loc
+	on loc.programstageinstanceid = sample.programstageinstanceid
+)antibiotic_sample_location
+on organism.programstageinstanceid = antibiotic_sample_location.programstageinstanceid
 inner join
 (
 select coc_co.categoryoptioncomboid,array_agg(coc_co.categoryoptionid) as cocelems,cc.categorycomboid,max(cc.name) as ccname
@@ -86,9 +102,13 @@ inner join categorycombo cc on cc.categorycomboid = cc_coc.categorycomboid
 where cc_coc.categorycomboid != 102161
 group by coc_co.categoryoptioncomboid,cc.categorycomboid
 )cocs
-on antibiotic_sample.antibiotics_coid = any(cocs.cocelems) and antibiotic_sample.sample_coid = any (cocs.cocelems) and organism.de_aggccid = cocs.categorycomboid
+on 	antibiotic_sample_location.antibiotics_coid = any(cocs.cocelems) and 
+	antibiotic_sample_location.sample_coid = any (cocs.cocelems) and 
+	antibiotic_sample_location.loc_coid = any (cocs.cocelems) and 
+	organism.de_aggccid = cocs.categorycomboid
 left join period p on p.startdate = organism.startdate and p.enddate = organism.enddate
 group by de_aggid,organism.sourceid,organism.startdate,organism.enddate,categoryoptioncomboid,p.periodid
+
 
 ' Language sql;
 CREATE or replace FUNCTION cs() RETURNS void AS $$
